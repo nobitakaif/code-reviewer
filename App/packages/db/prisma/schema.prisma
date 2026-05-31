@@ -12,3 +12,145 @@ datasource db {
   provider = "postgresql"
 }
 
+model User{
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  githubId      String    @unique
+  avatarUrl     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt     
+  installations GitHubInstallation[]
+}
+
+model GitHubInstallation{
+  id                          String  @id @default(cuid())
+  userId                      String
+  user                        User @relation(fields: [userId], references: [id])
+  githubInstalltionId         Int   @unique
+  accountLogin                String
+  accountType                 String
+  createdAt                   DateTime    @default(now())
+  repositories                Repository[]
+}
+
+model Repository{
+  id              String    @id @default(cuid())
+  githubRepoId    String
+  installationId  String
+  installation    GitHubInstallation @relation(fields: [installationId], references: [id])
+  owner           String
+  name            String
+  fullName        String  @unique
+  private         Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  pullRequests    PullRequest[]
+
+  @@index([fullName])
+}
+
+model PullRequest{
+  id              String  @id @default(cuid())
+  repositoryId    String
+  repository      Repository @relation(fields: [repositoryId], references: [id])
+  githubPrNumber  Int
+  githubPrId      Int @unique
+  title           String
+  body            String?
+  autorLogin      String
+  baseBranch      String
+  headBranch      String
+  status          PullRequestStatus
+  state           String
+  opendAt         DateTime
+  closedAt        DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime  @updatedAt
+  reviewRuns     ReviewRun[]
+  
+  @@unique([repositoryId, githubPrNumber])
+}
+
+enum PullRequestStatus{
+  OPEN
+  CLOSED
+  MERGED
+}
+
+model ReviewRun{
+  id                    String @id  @default(cuid())
+  pullRequestId         String
+  pullRequest           PullRequest   @relation(fields: [pullRequestId], references: [id])
+  commitSha             String
+  modelName             String
+  status                ReviewRunStatus
+  summary               String
+  startedAt             DateTime  @default(now())
+  completedAt           DateTime?
+  createdAt             DateTime    @default(now())
+  comments              ReviewComment[]
+
+  @@index([commitSha])
+}
+
+enum ReviewRunStatus{
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model ReviewComment{
+  id                  String    @id @default(cuid())
+  reviewRunId         String
+  reivewRun           ReviewRun   @relation(fields: [reviewRunId], references: [id])
+  filePath            String
+  lineNumber          Int?
+  endLineNumber       Int?
+  commentType         ReviewCommentsType
+  severity            SeverityLevel
+  title               String
+  message             String
+  codeSnippet         String?
+  githubCommentId     Int?
+  isPostedToGithub    Boolean @default(false)
+  createdAt           DateTime  @default(now())
+
+  @@index([filePath])
+}
+
+enum ReviewCommentsType{
+  BUG
+  SECURITY
+  PERFORMANCE
+  STYLE
+  SUGGESTION
+}
+
+enum SeverityLevel{
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model WebhookEvent{
+  id                  String    @id     @default(cuid())
+  githubDeliveryId    String    @unique
+  eventType           String
+  action              String?
+  payload             Json
+  status              WebhookStatus
+  errorMessage        String?
+  createdAt           DateTime  @default(now())
+  processedAt         DateTime?
+}
+
+enum WebhookStatus{
+  RECEIVED
+  PROCESSED
+  FAILED
+}
+
+
