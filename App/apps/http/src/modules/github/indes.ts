@@ -1,33 +1,93 @@
 import { prisma } from "@repo/db/client";
 import Elysia, { t } from "elysia";
 
-export const github = new Elysia({prefix : "/github"})
-    
-    .post("/webhook", async ({ body, headers, }) => {
+export const github = new Elysia({ prefix: "/github" })
+.post(
+  "/webhook",
+  async ({ body, headers }) => {
 
     const event = headers["x-github-event"];
 
-    const payload  = body
+    console.log("Event:", event);
 
-    console.log(event);
-    
-    console.log(payload)
+    const installationId = body.installation?.id;
 
-    const res = await prisma.gitHubInstallation.create({
-        data : {
-            githubInstalltionId : payload?.installation.id,
-            accountLogin : payload?.installation?.account.login.toString(),
-            accountType : payload?.installation?.account.type.toString(),
-            userId : "cmptbmorr0000xou2onvw6uvn"
-        }
-    })
-    
-    console.log(res.id)
+    if (!installationId) {
+      console.log("No installation id");
+      return { ok: false };
+    }
+
+    // Find installation
+    const githubInstallation =
+      await prisma.gitHubInstallation.findUnique({
+        where: {
+          githubInstalltionId: installationId,
+        },
+      });
+
+    if (!githubInstallation) {
+      console.log(
+        "Installation not found:",
+        installationId
+      );
+
+      return {
+        ok: false,
+        message: "Installation not registered",
+      };
+    }
+
+    // Find user
+    const user = await prisma.user.findUnique({
+      where: {
+        id: githubInstallation.userId,
+      },
+    });
+
+    console.log("User:", user);
+
+    if (!user) {
+      return {
+        ok: false,
+        message: "User not found",
+      };
+    }
+
+    // Handle PR events
+    if (event === "pull_request") {
+
+      const repo = body.repository;
+
+      await prisma.repository.upsert({
+        where: {
+          githubRepoId: repo.id.toString(),
+        },
+        create: {
+          githubRepoId: repo.id.toString(),
+          installationId: githubInstallation.id,
+          owner: repo.owner.login,
+          name: repo.name,
+          fullName: repo.full_name,
+          private: repo.private,
+        },
+        update: {
+          owner: repo.owner.login,
+          name: repo.name,
+          fullName: repo.full_name,
+          private: repo.private,
+        },
+      });
+
+      console.log(
+        `PR #${body.pull_request.number} opened`
+      );
+    }
 
     return {
-        ok: true,
-        id : res.id
+      ok: true,
     };
-},{
-    body : t.Any()
-})
+  },
+  {
+    body: t.Any(),
+  }
+);

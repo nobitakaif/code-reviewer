@@ -36,7 +36,7 @@ model GitHubInstallation{
 
 model Repository{
   id              String    @id @default(cuid())
-  githubRepoId    String
+  githubRepoId    String  @unique
   installationId  String
   installation    GitHubInstallation @relation(fields: [installationId], references: [id])
   owner           String
